@@ -1,5 +1,5 @@
 // ===== CONFIG =====
-const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api";
+const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api/ask";
 const STAFF_CODE = "cms-staff-2025";
 
 // منوها
@@ -187,11 +187,20 @@ function openMenuPanel(type) {
       btn.textContent = item.label;
       btn.addEventListener("click", () => {
         closeMenuPanel();
+
         const qPrefix =
           type === "protocols"
             ? "Please show me the protocol: "
             : "Please show me the policy: ";
-        askPolicy(qPrefix + item.label, true);
+
+        const categoryHint =
+          type === "policies"
+            ? "policies"
+            : type === "protocols"
+            ? "protocols"
+            : "parent_handbook";
+
+        askPolicy(qPrefix + item.label, true, categoryHint);
       });
       menuPanelBody.appendChild(btn);
     });
@@ -223,20 +232,32 @@ menuPanelClose.addEventListener("click", closeMenuPanel);
 menuOverlay.addEventListener("click", closeMenuPanel);
 
 // ===== CHAT / API =====
-async function askPolicy(question, fromMenu = false) {
+async function askPolicy(question, fromMenu = false, categoryHint = null) {
   const trimmed = question.trim();
   if (!trimmed) return;
 
-  // پیام کاربر – همیشه زیر پیام قبلی
+  // پیام کاربر
   addMessage("user", trimmed);
 
   showTyping();
+
+  // حدس category
+  let category = categoryHint;
+  if (!category) {
+    const q = trimmed.toLowerCase();
+    if (q.includes("protocol")) category = "protocols";
+    else if (q.includes("handbook")) category = "parent_handbook";
+    else category = "policies";
+  }
 
   try {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query: trimmed })
+      body: JSON.stringify({
+        question: trimmed,
+        category
+      })
     });
 
     hideTyping();
@@ -248,17 +269,32 @@ async function askPolicy(question, fromMenu = false) {
 
     const data = await res.json();
 
-    const title = data.policy?.title || "Policy found:";
-    const answer = data.answer || "";
+    // اگر ساختار Worker جدید بود:
+    if (data?.result) {
+      if (!data.result.found) {
+        addMessage("assistant", data.result.message || "No matching policy found.");
+        return;
+      }
 
-    const linkPart = data.policy?.link
+      const item = data.result.item || {};
+      const title = item.title || "Policy found:";
+      const answer = item.content || item.summary || "";
+
+      const linkPart = item.link
+        ? `<br><br><a href="${item.link}" target="_blank">Open full policy</a>`
+        : "";
+
+      addMessage("assistant", `<b>${title}</b><br><br>${answer}${linkPart}`);
+      return;
+    }
+
+    // fallback اگر خروجی Worker قدیمی بود:
+    const titleOld = data.policy?.title || "Policy found:";
+    const answerOld = data.answer || "";
+    const linkPartOld = data.policy?.link
       ? `<br><br><a href="${data.policy.link}" target="_blank">Open full policy</a>`
       : "";
-
-    addMessage(
-      "assistant",
-      `<b>${title}</b><br><br>${answer}${linkPart}`
-    );
+    addMessage("assistant", `<b>${titleOld}</b><br><br>${answerOld}${linkPartOld}`);
   } catch (err) {
     hideTyping();
     addMessage("assistant", "Error connecting to server.");
@@ -270,5 +306,5 @@ chatForm.addEventListener("submit", (e) => {
   const q = userInput.value.trim();
   if (!q) return;
   userInput.value = "";
-  askPolicy(q, false);
+  askPolicy(q, false, null);
 });
