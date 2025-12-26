@@ -1,5 +1,5 @@
 // ===== CONFIG =====
-const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api/ask";
+const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api";
 const STAFF_CODE = "cms-staff-2025";
 
 // منوها
@@ -35,9 +35,7 @@ const MENU_ITEMS = {
     { id: "other", label: "other" },
     { id: "closing", label: "In closing" }
   ],
-  handbook: [
-    // فعلاً خالی – فقط پیام Coming soon نمایش می‌دهیم
-  ]
+  handbook: []
 };
 
 // ===== DOM =====
@@ -63,7 +61,7 @@ const menuPanelBody = document.getElementById("menu-panel-body");
 const menuPanelClose = document.getElementById("menu-panel-close");
 const menuOverlay = document.getElementById("menu-overlay");
 
-// برای تایپینگ
+// typing
 let typingBubble = null;
 
 // ===== HELPERS =====
@@ -79,10 +77,8 @@ function clearChat() {
   chatWindow.innerHTML = "";
 }
 
-// typing indicator
 function showTyping() {
   hideTyping();
-
   const wrapper = document.createElement("div");
   wrapper.className = "typing-bubble";
 
@@ -98,7 +94,6 @@ function showTyping() {
   wrapper.appendChild(dots);
   chatWindow.appendChild(wrapper);
   chatWindow.scrollTop = chatWindow.scrollHeight;
-
   typingBubble = wrapper;
 }
 
@@ -118,11 +113,9 @@ loginForm.addEventListener("submit", (e) => {
     loginError.textContent = "";
     accessCodeInput.value = "";
 
-    // نمایش چت
     loginScreen.classList.add("hidden");
     chatScreen.classList.remove("hidden");
 
-    // نمایش logout + منو بالا
     headerActions.classList.remove("hidden");
     topMenuBar.classList.remove("hidden");
 
@@ -137,23 +130,17 @@ loginForm.addEventListener("submit", (e) => {
 });
 
 logoutBtn.addEventListener("click", () => {
-  // بستن پنل منو
   closeMenuPanel();
-
-  // برگشت به لاگین
   chatScreen.classList.add("hidden");
   loginScreen.classList.remove("hidden");
-
   headerActions.classList.add("hidden");
   topMenuBar.classList.add("hidden");
-
   clearChat();
   accessCodeInput.value = "";
 });
 
-// ===== MENU PANEL LOGIC =====
+// ===== MENU PANEL =====
 function openMenuPanel(type) {
-  // فعال کردن استیت ظاهری دکمه‌ها
   menuPills.forEach((btn) =>
     btn.classList.toggle("active", btn.dataset.menu === type)
   );
@@ -187,20 +174,11 @@ function openMenuPanel(type) {
       btn.textContent = item.label;
       btn.addEventListener("click", () => {
         closeMenuPanel();
-
         const qPrefix =
           type === "protocols"
             ? "Please show me the protocol: "
             : "Please show me the policy: ";
-
-        const categoryHint =
-          type === "policies"
-            ? "policies"
-            : type === "protocols"
-            ? "protocols"
-            : "parent_handbook";
-
-        askPolicy(qPrefix + item.label, true, categoryHint);
+        askPolicy(qPrefix + item.label);
       });
       menuPanelBody.appendChild(btn);
     });
@@ -219,12 +197,8 @@ function closeMenuPanel() {
 menuPills.forEach((btn) => {
   btn.addEventListener("click", () => {
     const type = btn.dataset.menu;
-    // اگر تکراری کلیک شد، ببندیم
-    if (btn.classList.contains("active")) {
-      closeMenuPanel();
-    } else {
-      openMenuPanel(type);
-    }
+    if (btn.classList.contains("active")) closeMenuPanel();
+    else openMenuPanel(type);
   });
 });
 
@@ -232,72 +206,47 @@ menuPanelClose.addEventListener("click", closeMenuPanel);
 menuOverlay.addEventListener("click", closeMenuPanel);
 
 // ===== CHAT / API =====
-async function askPolicy(question, fromMenu = false, categoryHint = null) {
-  const trimmed = question.trim();
+async function askPolicy(question) {
+  const trimmed = (question || "").trim();
   if (!trimmed) return;
 
-  // پیام کاربر
   addMessage("user", trimmed);
-
   showTyping();
-
-  // حدس category
-  let category = categoryHint;
-  if (!category) {
-    const q = trimmed.toLowerCase();
-    if (q.includes("protocol")) category = "protocols";
-    else if (q.includes("handbook")) category = "parent_handbook";
-    else category = "policies";
-  }
 
   try {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        question: trimmed,
-        category
-      })
+      body: JSON.stringify({ query: trimmed })
     });
 
     hideTyping();
 
+    const text = await res.text();
+    let data = null;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      addMessage("assistant", "Server returned non-JSON response.");
+      return;
+    }
+
     if (!res.ok) {
-      addMessage("assistant", "Network error — please try again.");
+      addMessage("assistant", `Server error: ${data.error || res.status}`);
       return;
     }
 
-    const data = await res.json();
-
-    // اگر ساختار Worker جدید بود:
-    if (data?.result) {
-      if (!data.result.found) {
-        addMessage("assistant", data.result.message || "No matching policy found.");
-        return;
-      }
-
-      const item = data.result.item || {};
-      const title = item.title || "Policy found:";
-      const answer = item.content || item.summary || "";
-
-      const linkPart = item.link
-        ? `<br><br><a href="${item.link}" target="_blank">Open full policy</a>`
-        : "";
-
-      addMessage("assistant", `<b>${title}</b><br><br>${answer}${linkPart}`);
-      return;
-    }
-
-    // fallback اگر خروجی Worker قدیمی بود:
-    const titleOld = data.policy?.title || "Policy found:";
-    const answerOld = data.answer || "";
-    const linkPartOld = data.policy?.link
+    const title = data.policy?.title || "Policy found:";
+    const answer = data.answer || "";
+    const linkPart = data.policy?.link
       ? `<br><br><a href="${data.policy.link}" target="_blank">Open full policy</a>`
       : "";
-    addMessage("assistant", `<b>${titleOld}</b><br><br>${answerOld}${linkPartOld}`);
+
+    addMessage("assistant", `<b>${title}</b><br><br>${answer}${linkPart}`);
   } catch (err) {
     hideTyping();
-    addMessage("assistant", "Error connecting to server.");
+    addMessage("assistant", "Network error — please try again.");
   }
 }
 
@@ -306,5 +255,5 @@ chatForm.addEventListener("submit", (e) => {
   const q = userInput.value.trim();
   if (!q) return;
   userInput.value = "";
-  askPolicy(q, false, null);
+  askPolicy(q);
 });
