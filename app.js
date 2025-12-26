@@ -1,5 +1,5 @@
 // ===== CONFIG =====
-const API_URL = "https://cms-policy-worker.shokbhl.workers.dev/api";
+const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api";
 const STAFF_CODE = "cms-staff-2025";
 
 // منوها
