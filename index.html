@@ -26,24 +26,25 @@
     </header>
 
     <main class="container">
+
       <!-- LOGIN -->
       <section class="card" id="login-screen">
         <h1>Sign in</h1>
         <p class="muted">Enter your username + password and select your campus.</p>
 
         <form id="login-form" class="grid">
-          <label>
-            Username
+          <div>
+            <label>Username</label>
             <input id="username" type="text" placeholder="e.g. staff_yc" autocomplete="username" />
-          </label>
+          </div>
 
-          <label>
-            Password
+          <div>
+            <label>Password</label>
             <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
-          </label>
+          </div>
 
-          <label>
-            Campus
+          <div>
+            <label>Campus</label>
             <select id="campus">
               <option value="">Select campus…</option>
               <option value="YC">YC</option>
@@ -52,18 +53,23 @@
               <option value="SC">SC</option>
               <option value="WC">WC</option>
             </select>
-          </label>
+          </div>
 
-          <button class="btn primary" type="submit">Login</button>
-          <div class="error" id="login-error"></div>
-          <div class="tip">Tip: Staff must pick their own campus. Admin can access all campuses.</div>
+          <div class="grid-actions">
+            <button class="btn primary" type="submit">Login</button>
+            <div id="login-error" class="error hidden"></div>
+          </div>
         </form>
+
+        <div class="tip">
+          Tip: Staff must pick their own campus. Admin can access all campuses.
+        </div>
       </section>
 
       <!-- CHAT -->
       <section class="card hidden" id="chat-screen">
-        <div class="menu">
-          <button class="menu-pill active" data-menu="policies">Policies</button>
+        <div class="menu-row">
+          <button class="menu-pill" data-menu="policies">Policies</button>
           <button class="menu-pill" data-menu="protocols">Protocols</button>
           <button class="menu-pill" data-menu="handbook">Parent Handbook</button>
         </div>
@@ -87,6 +93,7 @@
         </div>
         <div class="panel-body" id="menu-panel-body"></div>
       </aside>
+
     </main>
   </div>
 
