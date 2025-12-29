@@ -1,11 +1,11 @@
-// app.js
+// =========================
+// CMS Policy Chatbot - app.js
+// =========================
 
 // ===== CONFIG =====
-const API_BASE = "https://school-policy-worker-v2.shokbhl.workers.dev";
-const LOGIN_URL = `${API_BASE}/login`;
-const API_URL = `${API_BASE}/api`;
+const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api";
 
-// ===== MENUS =====
+// Menu items (for quick jump)
 const MENU_ITEMS = {
   policies: [
     { id: "safe_arrival", label: "Safe Arrival & Dismissal" },
@@ -35,11 +35,15 @@ const MENU_ITEMS = {
     { id: "afterschool_routines", label: "Afterschool Routines & Extracurricular Activities" },
     { id: "special_events", label: "Special Events" },
     { id: "reports_forms", label: "Reports & Forms" },
-    { id: "other", label: "other" },
+    { id: "other", label: "Other" },
     { id: "closing", label: "In closing" }
   ],
-  handbook: [] // we render based on campus
+  handbook: [
+    // Campus-specific - just open campus handbook (worker decides, but we also have a direct button behavior)
+  ]
 };
+
+const CAMPUS_OPTIONS = ["YC", "MC", "TC", "SC", "WC"];
 
 // ===== DOM =====
 const loginScreen = document.getElementById("login-screen");
@@ -51,16 +55,16 @@ const passwordInput = document.getElementById("password");
 const campusSelect = document.getElementById("campus");
 const loginError = document.getElementById("login-error");
 
-const headerActions = document.getElementById("header-actions");
-const logoutBtn = document.getElementById("logout-btn");
-const campusBadge = document.getElementById("campus-badge");
-
-const topMenuBar = document.getElementById("top-menu-bar");
-const menuPills = document.querySelectorAll(".menu-pill");
-
 const chatWindow = document.getElementById("chat-window");
 const chatForm = document.getElementById("chat-form");
 const userInput = document.getElementById("user-input");
+
+const headerActions = document.getElementById("header-actions");
+const logoutBtn = document.getElementById("logout-btn");
+const topMenuBar = document.getElementById("top-menu-bar");
+const campusBadge = document.getElementById("campus-badge");
+
+const menuPills = document.querySelectorAll(".menu-pill");
 
 const menuPanel = document.getElementById("menu-panel");
 const menuPanelTitle = document.getElementById("menu-panel-title");
@@ -68,24 +72,21 @@ const menuPanelBody = document.getElementById("menu-panel-body");
 const menuPanelClose = document.getElementById("menu-panel-close");
 const menuOverlay = document.getElementById("menu-overlay");
 
+// ===== STATE =====
 let typingBubble = null;
+let currentUser = null; // { username, role, campuses }
+let currentCampus = null;
 
-// ===== SESSION =====
-function getSession() {
-  try {
-    return JSON.parse(localStorage.getItem("cms_session") || "null");
-  } catch {
-    return null;
-  }
-}
-function setSession(s) {
-  localStorage.setItem("cms_session", JSON.stringify(s));
-}
-function clearSession() {
-  localStorage.removeItem("cms_session");
+// ===== HELPERS =====
+function escapeHtml(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-// ===== UI HELPERS =====
 function addMessage(role, htmlText) {
   const msg = document.createElement("div");
   msg.className = `msg ${role}`;
@@ -126,128 +127,56 @@ function hideTyping() {
   typingBubble = null;
 }
 
-function showChatUI(campus) {
-  loginScreen.classList.add("hidden");
-  chatScreen.classList.remove("hidden");
-  headerActions.classList.remove("hidden");
-  topMenuBar.classList.remove("hidden");
-
-  campusBadge.classList.remove("hidden");
-  campusBadge.textContent = `Campus: ${campus}`;
-
-  clearChat();
-  addMessage("assistant", "Hi 👋 You can ask about any CMS policy/protocol, or open your campus Parent Handbook from the menu above.");
+function setCampusBadge(campus) {
+  if (!campusBadge) return;
+  campusBadge.textContent = campus ? `Campus: ${campus}` : "Campus: —";
 }
 
-function showLoginUI() {
-  closeMenuPanel();
-  chatScreen.classList.add("hidden");
-  loginScreen.classList.remove("hidden");
-  headerActions.classList.add("hidden");
-  topMenuBar.classList.add("hidden");
-  campusBadge.classList.add("hidden");
-  clearChat();
-  loginError.textContent = "";
-  usernameInput.value = "";
-  passwordInput.value = "";
-  campusSelect.value = "";
-}
-
-// ===== AUTH =====
-loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  loginError.textContent = "";
-
-  const username = usernameInput.value.trim();
-  const password = passwordInput.value.trim();
-  const campus = (campusSelect.value || "").trim().toUpperCase();
-
-  if (!username || !password || !campus) {
-    loginError.textContent = "Please enter username, password, and campus.";
-    return;
-  }
-
-  try {
-    const res = await fetch(LOGIN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, campus })
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      loginError.textContent = data.error || "Login failed.";
-      return;
-    }
-
-    // Save session
-    setSession({
-      token: data.token,
-      user: data.user
-    });
-
-    showChatUI(data.user.campus);
-  } catch (err) {
-    loginError.textContent = "Network error. Please try again.";
-  }
-});
-
-logoutBtn.addEventListener("click", () => {
-  clearSession();
-  showLoginUI();
-});
-
-// Auto-restore session
-(function boot() {
-  const s = getSession();
-  if (s?.token && s?.user?.campus) {
-    showChatUI(s.user.campus);
+function setLoggedInUI(isLoggedIn) {
+  if (isLoggedIn) {
+    loginScreen.classList.add("hidden");
+    chatScreen.classList.remove("hidden");
+    headerActions.classList.remove("hidden");
+    topMenuBar.classList.remove("hidden");
   } else {
-    showLoginUI();
+    chatScreen.classList.add("hidden");
+    loginScreen.classList.remove("hidden");
+    headerActions.classList.add("hidden");
+    topMenuBar.classList.add("hidden");
   }
-})();
+}
 
 // ===== MENU PANEL =====
 function openMenuPanel(type) {
-  menuPills.forEach((btn) => btn.classList.toggle("active", btn.dataset.menu === type));
+  menuPills.forEach((btn) =>
+    btn.classList.toggle("active", btn.dataset.menu === type)
+  );
 
   menuPanelTitle.textContent =
-    type === "policies" ? "Policies" :
-    type === "protocols" ? "Protocols" :
-    "Parent Handbook";
+    type === "policies" ? "Policies" : type === "protocols" ? "Protocols" : "Parent Handbook";
 
   menuPanelBody.innerHTML = "";
 
-  const s = getSession();
-  const campus = s?.user?.campus || "";
-
   if (type === "handbook") {
-    const label = document.createElement("div");
-    label.className = "menu-group-label";
-    label.textContent = campus ? `Your campus: ${campus}` : "Login required";
-    menuPanelBody.appendChild(label);
+    // handbook is campus specific
+    const p = document.createElement("p");
+    p.className = "menu-hint";
+    p.textContent = `Open Parent Handbook for campus: ${currentCampus || "—"}`;
+    menuPanelBody.appendChild(p);
 
     const btn = document.createElement("button");
     btn.className = "menu-item-btn";
-    btn.textContent = campus ? `Open Parent Handbook — ${campus}` : "Please login first";
-    btn.disabled = !campus;
-
+    btn.textContent = `Open Parent Handbook (${currentCampus || "Select campus"})`;
+    btn.disabled = !currentCampus;
     btn.addEventListener("click", () => {
       closeMenuPanel();
-      askPolicy(`Please show me the parent handbook for campus ${campus}.`, true);
+      // Ask a direct question so worker picks handbook
+      askPolicy("Open the Parent Handbook", true);
     });
     menuPanelBody.appendChild(btn);
-
-    const hint = document.createElement("p");
-    hint.style.fontSize = "0.9rem";
-    hint.style.color = "#6b7280";
-    hint.style.margin = "6px 2px 0";
-    hint.textContent = "You can also ask questions about the handbook (fees, hours, policies, etc.).";
-    menuPanelBody.appendChild(hint);
-
   } else {
     const items = MENU_ITEMS[type] || [];
+
     const label = document.createElement("div");
     label.className = "menu-group-label";
     label.textContent = "Tap an item to view details";
@@ -259,7 +188,9 @@ function openMenuPanel(type) {
       btn.textContent = item.label;
       btn.addEventListener("click", () => {
         closeMenuPanel();
-        const qPrefix = type === "protocols" ? "Please show me the protocol: " : "Please show me the policy: ";
+        const qPrefix = type === "protocols"
+          ? "Please show me the protocol: "
+          : "Please show me the policy: ";
         askPolicy(qPrefix + item.label, true);
       });
       menuPanelBody.appendChild(btn);
@@ -284,25 +215,163 @@ menuPills.forEach((btn) => {
   });
 });
 
-menuPanelClose.addEventListener("click", closeMenuPanel);
-menuOverlay.addEventListener("click", closeMenuPanel);
+menuPanelClose?.addEventListener("click", closeMenuPanel);
+menuOverlay?.addEventListener("click", closeMenuPanel);
 
-// ===== CHAT =====
-chatForm.addEventListener("submit", (e) => {
+// ===== LOGIN =====
+// We authenticate via worker by calling /api with a special login query.
+// (Worker must support auth OR you can keep this client-side for now if already implemented.)
+// For now: We'll call the worker with query "__LOGIN__" and expect user info back.
+// If your worker login endpoint differs, tell me and I’ll adjust.
+
+async function doLogin(username, password, campus) {
+  // Here we call API with a login payload style your worker can recognize.
+  // If you already implemented /api login logic: use body.mode = "login".
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      mode: "login",
+      username,
+      password,
+      campus
+    })
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    return { ok: false, error: data?.error || "Login failed." };
+  }
+  if (!data?.ok) {
+    return { ok: false, error: data?.error || "Invalid credentials." };
+  }
+  return { ok: true, user: data.user, campus: data.campus };
+}
+
+function initCampusOptions() {
+  if (!campusSelect) return;
+  campusSelect.innerHTML = `<option value="">Select campus…</option>`;
+  CAMPUS_OPTIONS.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    campusSelect.appendChild(opt);
+  });
+}
+initCampusOptions();
+
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  const q = userInput.value.trim();
-  if (!q) return;
-  userInput.value = "";
-  askPolicy(q, false);
+  loginError.textContent = "";
+
+  const username = (usernameInput.value || "").trim();
+  const password = (passwordInput.value || "").trim();
+  const campus = (campusSelect.value || "").trim();
+
+  if (!username || !password || !campus) {
+    loginError.textContent = "Please enter username, password, and campus.";
+    return;
+  }
+
+  // Attempt login
+  loginError.textContent = "Signing in…";
+  try {
+    const result = await doLogin(username, password, campus);
+
+    if (!result.ok) {
+      loginError.textContent = result.error;
+      return;
+    }
+
+    currentUser = result.user;
+    currentCampus = result.campus || campus;
+    setCampusBadge(currentCampus);
+
+    // Save session (simple)
+    localStorage.setItem("cms_session", JSON.stringify({
+      username,
+      campus: currentCampus
+    }));
+
+    // Show app
+    setLoggedInUI(true);
+    clearChat();
+
+    addMessage(
+      "assistant",
+      `Hi 👋 You can ask about any CMS policy/protocol, or open your campus Parent Handbook from the menu above.`
+    );
+
+    // clear fields
+    usernameInput.value = "";
+    passwordInput.value = "";
+    campusSelect.value = currentCampus;
+
+  } catch (err) {
+    loginError.textContent = "Could not reach server. Please try again.";
+  }
 });
 
-async function askPolicy(question) {
-  const trimmed = question.trim();
+// ===== LOGOUT =====
+logoutBtn.addEventListener("click", () => {
+  closeMenuPanel();
+  currentUser = null;
+  currentCampus = null;
+  setCampusBadge(null);
+
+  localStorage.removeItem("cms_session");
+
+  setLoggedInUI(false);
+  clearChat();
+  loginError.textContent = "";
+});
+
+// ===== AUTO RESTORE SESSION (optional) =====
+(async function restoreSession() {
+  const raw = localStorage.getItem("cms_session");
+  if (!raw) return;
+
+  try {
+    const sess = JSON.parse(raw);
+    if (!sess?.username || !sess?.campus) return;
+
+    // We cannot restore password securely; keep logged out.
+    // You can remove this whole block if you don't want it.
+    campusSelect.value = sess.campus;
+    setCampusBadge(null);
+  } catch {}
+})();
+
+// ===== CHAT / API =====
+function buildTitleFromSource(policyObj) {
+  if (!policyObj) return "Result:";
+  const source = policyObj.source;
+  const campus = policyObj.campus;
+
+  let prefix = "";
+  if (source === "policy") prefix = "Policy: ";
+  else if (source === "protocol") prefix = "Protocol: ";
+  else if (source === "handbook") prefix = `Parent Handbook (${campus || currentCampus || ""}): `;
+  else prefix = "";
+
+  return `${prefix}${policyObj.title || "Result"}`;
+}
+
+function buildLinkHtml(policyObj) {
+  if (!policyObj?.link) return "";
+  const label =
+    policyObj.source === "handbook" ? "Open full document" :
+    policyObj.source === "protocol" ? "Open full protocol" :
+    "Open full policy";
+  return `<br><br><a href="${escapeHtml(policyObj.link)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+}
+
+async function askPolicy(question, fromMenu = false) {
+  const trimmed = (question || "").trim();
   if (!trimmed) return;
 
-  const s = getSession();
-  if (!s?.token) {
-    addMessage("assistant", "Please login first.");
+  if (!currentCampus) {
+    addMessage("assistant", "Please login and select a campus first.");
     return;
   }
 
@@ -312,46 +381,47 @@ async function askPolicy(question) {
   try {
     const res = await fetch(API_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${s.token}`
-      },
-      body: JSON.stringify({ query: trimmed })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: trimmed,
+        campus: currentCampus
+      })
     });
 
-    const data = await res.json().catch(() => ({}));
     hideTyping();
 
+    const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
-      // Friendly errors
-      const msg = data.error || "Something went wrong. Please try again.";
+      const msg = data?.error || "Network error — please try again.";
       addMessage("assistant", escapeHtml(msg));
-      // If session expired
-      if (res.status === 401) {
-        clearSession();
-      }
       return;
     }
 
-    const title = data.policy?.title || "Result";
-    const answer = data.answer || "";
-    const linkPart = data.policy?.link
-      ? `<br><br><a href="${data.policy.link}" target="_blank" rel="noopener">Open full document</a>`
-      : "";
+    // If worker returns { error: ... } with 200
+    if (data?.error) {
+      addMessage("assistant", escapeHtml(data.error));
+      return;
+    }
 
-    addMessage("assistant", `<b>${escapeHtml(title)}</b><br><br>${escapeHtml(answer)}${linkPart}`);
+    const title = buildTitleFromSource(data.policy);
+    const answer = data.answer || "";
+    const linkPart = buildLinkHtml(data.policy);
+
+    addMessage(
+      "assistant",
+      `<b>${escapeHtml(title)}</b><br><br>${escapeHtml(answer)}${linkPart}`
+    );
   } catch (err) {
     hideTyping();
-    addMessage("assistant", "Network error — please try again.");
+    addMessage("assistant", "Error connecting to server.");
   }
 }
 
-// Prevent HTML injection
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
+chatForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = (userInput.value || "").trim();
+  if (!q) return;
+  userInput.value = "";
+  askPolicy(q, false);
+});
