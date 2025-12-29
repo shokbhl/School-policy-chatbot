@@ -1,40 +1,38 @@
 // ===== CONFIG =====
-const API_URL = "https://school-policy-worker-v2.shokbhl.workers.dev/api";
+const API_BASE = "https://school-policy-worker-v2.shokbhl.workers.dev";
+const ENDPOINT_AUTH = `${API_BASE}/auth`;
+const ENDPOINT_API = `${API_BASE}/api`;
+
+let authToken = null;
+let currentCampus = null;
+let currentRole = null;
 
 // ===== DOM =====
 const loginScreen = document.getElementById("login-screen");
-const chatScreen  = document.getElementById("chat-screen");
+const chatScreen = document.getElementById("chat-screen");
 
 const loginForm = document.getElementById("login-form");
-const usernameEl = document.getElementById("username");
-const passwordEl = document.getElementById("password");
-const campusEl   = document.getElementById("campus");
+const usernameInput = document.getElementById("username");
+const passwordInput = document.getElementById("password");
+const campusSelect = document.getElementById("campus");
 const loginError = document.getElementById("login-error");
-
-const chatWindow = document.getElementById("chat-window");
-const chatForm   = document.getElementById("chat-form");
-const userInput  = document.getElementById("user-input");
 
 const topActions = document.getElementById("top-actions");
 const campusPill = document.getElementById("campus-pill");
-const logoutBtn  = document.getElementById("logout-btn");
+const logoutBtn = document.getElementById("logout-btn");
 
-const menuPills      = document.querySelectorAll(".menu-pill");
-const menuPanel      = document.getElementById("menu-panel");
+const menuPills = document.querySelectorAll(".menu-pill");
+const menuPanel = document.getElementById("menu-panel");
 const menuPanelTitle = document.getElementById("menu-panel-title");
-const menuPanelBody  = document.getElementById("menu-panel-body");
+const menuPanelBody = document.getElementById("menu-panel-body");
 const menuPanelClose = document.getElementById("menu-panel-close");
-const menuOverlay    = document.getElementById("menu-overlay");
+const menuOverlay = document.getElementById("menu-overlay");
 
-// ===== STATE =====
-let SESSION = {
-  token: null,
-  campus: null,
-  role: null,
-  username: null
-};
+const chatWindow = document.getElementById("chat-window");
+const chatForm = document.getElementById("chat-form");
+const userInput = document.getElementById("user-input");
 
-// simple menu items
+// ===== MENU =====
 const MENU_ITEMS = {
   policies: [
     "Safe Arrival & Dismissal",
@@ -72,136 +70,119 @@ const MENU_ITEMS = {
   ]
 };
 
-// ===== UI HELPERS =====
-function clearChat(){ chatWindow.innerHTML = ""; }
-
+// ===== UI helpers =====
+function showLoginError(msg) {
+  loginError.textContent = msg;
+  loginError.classList.toggle("hidden", !msg);
+}
 function addMessage(role, html) {
-  const div = document.createElement("div");
-  div.className = `msg ${role}`;
-  div.innerHTML = html;
-  chatWindow.appendChild(div);
+  const msg = document.createElement("div");
+  msg.className = `msg ${role}`;
+  msg.innerHTML = html;
+  chatWindow.appendChild(msg);
   chatWindow.scrollTop = chatWindow.scrollHeight;
 }
-
-function setLoggedInUI(on){
-  if (on) {
-    loginScreen.classList.add("hidden");
-    chatScreen.classList.remove("hidden");
-    topActions.classList.remove("hidden");
-    campusPill.textContent = `Campus: ${SESSION.campus || "—"}`;
-  } else {
-    chatScreen.classList.add("hidden");
-    loginScreen.classList.remove("hidden");
-    topActions.classList.add("hidden");
-  }
-}
+function clearChat() { chatWindow.innerHTML = ""; }
 
 // ===== LOGIN =====
 loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  loginError.textContent = "";
+  showLoginError("");
 
-  const username = usernameEl.value.trim();
-  const password = passwordEl.value;
-  const campus   = (campusEl.value || "").trim().toUpperCase();
+  const username = usernameInput.value.trim();
+  const password = passwordInput.value;
+  const campus = campusSelect.value;
 
   if (!username || !password || !campus) {
-    loginError.textContent = "Please enter username, password, and campus.";
+    showLoginError("Please enter username, password, and campus.");
     return;
   }
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(ENDPOINT_AUTH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "login",
-        username,
-        password,
-        campus
-      })
+      body: JSON.stringify({ username, password, campus })
     });
 
     const data = await res.json();
 
-    if (!res.ok || !data.ok) {
-      loginError.textContent = data.error || "Login failed.";
+    if (!res.ok) {
+      showLoginError(data.error || "Login failed.");
       return;
     }
 
-    SESSION.token = data.token;
-    SESSION.campus = data.user?.campus || campus;
-    SESSION.role = data.user?.role || "staff";
-    SESSION.username = data.user?.username || username;
+    authToken = data.token;
+    currentCampus = data.campus;
+    currentRole = data.role;
 
-    // persist
-    localStorage.setItem("cms_session", JSON.stringify(SESSION));
+    // Switch screens
+    loginScreen.classList.add("hidden");
+    chatScreen.classList.remove("hidden");
+    topActions.classList.remove("hidden");
 
-    setLoggedInUI(true);
+    campusPill.textContent = `Campus: ${currentCampus}`;
     clearChat();
-    addMessage("assistant", `Hi 👋 You can ask about any CMS policy/protocol, or open your campus Parent Handbook from the menu above.`);
-  } catch (err) {
-    loginError.textContent = "Network error. Please try again.";
+    addMessage("assistant",
+      `Hi 👋 Ask about any CMS policy or protocol.<br>
+       <span class="muted">Tip: Parent Handbook answers will be campus-specific (${currentCampus}).</span>`
+    );
+  } catch {
+    showLoginError("Network error. Please try again.");
   }
 });
 
+// ===== LOGOUT =====
 logoutBtn.addEventListener("click", () => {
-  localStorage.removeItem("cms_session");
-  SESSION = { token:null, campus:null, role:null, username:null };
+  authToken = null;
+  currentCampus = null;
+  currentRole = null;
+
   closeMenuPanel();
+  chatScreen.classList.add("hidden");
+  loginScreen.classList.remove("hidden");
+  topActions.classList.add("hidden");
+
+  usernameInput.value = "";
+  passwordInput.value = "";
+  campusSelect.value = "";
+
   clearChat();
-  setLoggedInUI(false);
 });
 
-// restore session
-(function restore(){
-  const raw = localStorage.getItem("cms_session");
-  if (!raw) return;
-  try {
-    const s = JSON.parse(raw);
-    if (s && s.token) {
-      SESSION = s;
-      setLoggedInUI(true);
-      addMessage("assistant", `Hi 👋 You can ask about any CMS policy/protocol, or open your campus Parent Handbook from the menu above.`);
-    }
-  } catch {}
-})();
-
 // ===== MENU PANEL =====
-function openMenuPanel(type){
+function openMenuPanel(type) {
   menuPills.forEach(btn => btn.classList.toggle("active", btn.dataset.menu === type));
-  menuPanelTitle.textContent =
-    type === "policies" ? "Policies" :
-    type === "protocols" ? "Protocols" :
-    "Parent Handbook";
-
+  menuPanelTitle.textContent = type === "policies" ? "Policies" : type === "protocols" ? "Protocols" : "Parent Handbook";
   menuPanelBody.innerHTML = "";
 
   const items = MENU_ITEMS[type] || [];
   items.forEach(label => {
     const btn = document.createElement("button");
+    btn.className = "menu-item-btn";
     btn.textContent = label;
     btn.onclick = () => {
       closeMenuPanel();
       if (type === "handbook") {
-        ask(`Open Parent Handbook for campus ${SESSION.campus}`);
+        askAPI(`Please show my campus Parent Handbook (${currentCampus}).`);
       } else {
-        ask(`Please show me the ${type === "protocols" ? "protocol" : "policy"}: ${label}`);
+        const prefix = type === "protocols" ? "Please show me the protocol: " : "Please show me the policy: ";
+        askAPI(prefix + label);
       }
     };
     menuPanelBody.appendChild(btn);
   });
 
-  menuOverlay.classList.remove("hidden");
   menuPanel.classList.remove("hidden");
+  menuOverlay.classList.add("active");
 }
-function closeMenuPanel(){
-  menuOverlay.classList.add("hidden");
+function closeMenuPanel() {
   menuPanel.classList.add("hidden");
+  menuOverlay.classList.remove("active");
   menuPills.forEach(btn => btn.classList.remove("active"));
 }
-menuPills.forEach(btn=>{
-  btn.addEventListener("click", ()=>{
+menuPills.forEach(btn => {
+  btn.addEventListener("click", () => {
     const type = btn.dataset.menu;
     if (btn.classList.contains("active")) closeMenuPanel();
     else openMenuPanel(type);
@@ -210,74 +191,57 @@ menuPills.forEach(btn=>{
 menuPanelClose.addEventListener("click", closeMenuPanel);
 menuOverlay.addEventListener("click", closeMenuPanel);
 
-// ===== ASK =====
-async function ask(question){
-  const q = (question || "").trim();
+// ===== CHAT =====
+chatForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const q = userInput.value.trim();
   if (!q) return;
+  userInput.value = "";
+  askAPI(q);
+});
 
-  addMessage("user", escapeHtml(q));
-
-  if (!SESSION.token) {
-    addMessage("assistant", "Please login first.");
-    return;
-  }
+async function askAPI(question) {
+  addMessage("user", escapeHtml(question));
 
   try {
-    const res = await fetch(API_URL, {
+    const res = await fetch(ENDPOINT_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${SESSION.token}`
+        "Authorization": `Bearer ${authToken}`
       },
-      body: JSON.stringify({ query: q })
+      body: JSON.stringify({ query: question })
     });
 
     const data = await res.json();
 
     if (!res.ok) {
-      addMessage("assistant", escapeHtml(data.error || "Something went wrong."));
+      addMessage("assistant", `<b>Error:</b> ${escapeHtml(data.error || "Request failed")}`);
       return;
     }
 
-    const title = data.policy?.title || "Result";
-    const sourceType = (data.policy?.source_type || "").toLowerCase();
-
-    const sourceLabel =
-      sourceType === "policy"   ? "Policy" :
-      sourceType === "protocol" ? "Protocol" :
-      sourceType === "handbook" ? `Parent Handbook - ${SESSION.campus}` :
-      "Source";
-
-    const link = data.policy?.link
-      ? `<div style="margin-top:10px;"><a href="${data.policy.link}" target="_blank" rel="noopener">Open full document</a></div>`
+    const src = data.source || {};
+    const sourceLine = src.type && src.title
+      ? `<div class="source-pill">${escapeHtml(src.type)} • ${escapeHtml(src.title)}</div>`
       : "";
 
-    addMessage(
-      "assistant",
-      `<b>${escapeHtml(title)}</b>
-       <div class="source-badge">${escapeHtml(sourceLabel)}</div>
-       <div style="margin-top:10px;">${escapeHtml(data.answer || "")}</div>
-       ${link}`
+    const linkLine = src.link
+      ? `<a class="doc-link" href="${src.link}" target="_blank">Open full document</a>`
+      : "";
+
+    addMessage("assistant",
+      `${sourceLine}
+       <div class="answer">${escapeHtml(data.answer || "")}</div>
+       ${linkLine ? `<div class="link-wrap">${linkLine}</div>` : ""}`
     );
-  } catch (err) {
+
+  } catch {
     addMessage("assistant", "Network error — please try again.");
   }
 }
 
-chatForm.addEventListener("submit", (e)=>{
-  e.preventDefault();
-  const q = userInput.value.trim();
-  if (!q) return;
-  userInput.value = "";
-  ask(q);
-});
-
-// ===== tiny helper =====
-function escapeHtml(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, s => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[s]));
 }
