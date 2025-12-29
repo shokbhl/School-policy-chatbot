@@ -1,108 +1,111 @@
-<!-- index.html -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>CMS Policy Chatbot</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="./style.css" />
 </head>
-<body>
-  <div class="app-shell">
 
-    <!-- Header -->
-    <header class="topbar">
+<body>
+  <div class="app">
+
+    <!-- HEADER -->
+    <header class="header">
       <div class="brand">
-        <div class="brand-logo">
-          <!-- اگر لوگو داری، img بذار -->
-          <span class="brand-mark">CMS</span>
-        </div>
+        <div class="brand-mark">CMS</div>
         <div class="brand-text">
           <div class="brand-title">CMS Policy Chatbot</div>
           <div class="brand-subtitle">Internal staff assistant</div>
         </div>
       </div>
 
-      <div id="header-actions" class="header-actions hidden">
-        <div id="campus-badge" class="badge hidden">Campus: —</div>
-        <button id="logout-btn" class="btn btn-ghost">Logout</button>
+      <div class="header-right">
+        <span id="campus-badge" class="badge hidden"></span>
+        <div id="header-actions" class="hidden">
+          <button id="logout-btn" class="btn btn-ghost">Logout</button>
+        </div>
       </div>
     </header>
 
-    <!-- Login -->
-    <main id="login-screen" class="screen">
-      <div class="card login-card">
-        <h1 class="h1">Sign in</h1>
-        <p class="muted">
-          Enter your username + password and select your campus.
-        </p>
+    <!-- LOGIN -->
+    <main id="login-screen" class="card">
+      <h1 class="h1">Sign in</h1>
+      <p class="muted">Enter your username + password and select your campus.</p>
 
-        <form id="login-form" class="form">
-          <label class="label">Username</label>
-          <input id="username" class="input" type="text" autocomplete="username" placeholder="e.g. staff_yc" required />
+      <form id="login-form" class="form">
+        <div class="grid-3">
+          <label class="field">
+            <span class="label">Username</span>
+            <input id="username" class="input" placeholder="e.g. staff_yc" autocomplete="username" />
+          </label>
 
-          <label class="label">Password</label>
-          <input id="password" class="input" type="password" autocomplete="current-password" placeholder="••••••••" required />
+          <label class="field">
+            <span class="label">Password</span>
+            <input id="password" class="input" type="password" placeholder="••••••••" autocomplete="current-password" />
+          </label>
 
-          <label class="label">Campus</label>
-          <select id="campus" class="input" required>
-            <option value="" selected disabled>Select campus…</option>
-            <option value="YC">YC</option>
-            <option value="MC">MC</option>
-            <option value="TC">TC</option>
-            <option value="SC">SC</option>
-            <option value="WC">WC</option>
-          </select>
+          <label class="field">
+            <span class="label">Campus</span>
+            <select id="campus" class="input">
+              <option value="">Select campus…</option>
+              <option value="YC">YC</option>
+              <option value="MC">MC</option>
+              <option value="TC">TC</option>
+              <option value="SC">SC</option>
+              <option value="WC">WC</option>
+            </select>
+          </label>
+        </div>
 
-          <div id="login-error" class="error" aria-live="polite"></div>
-
+        <div class="row">
           <button class="btn btn-primary" type="submit">Login</button>
-        </form>
+          <div id="login-error" class="error" aria-live="polite"></div>
+        </div>
 
-        <div class="hint">
+        <div class="tip">
           Tip: Staff must pick their own campus. Admin can access all campuses.
         </div>
-      </div>
+      </form>
     </main>
 
-    <!-- Chat -->
-    <main id="chat-screen" class="screen hidden">
-      <div id="top-menu-bar" class="menu-bar hidden">
-        <button class="menu-pill" data-menu="policies">Policies</button>
-        <button class="menu-pill" data-menu="protocols">Protocols</button>
-        <button class="menu-pill" data-menu="handbook">Parent Handbook</button>
+    <!-- CHAT -->
+    <main id="chat-screen" class="hidden">
+      <div id="top-menu-bar" class="topbar hidden">
+        <button class="pill menu-pill" data-menu="policies">Policies</button>
+        <button class="pill menu-pill" data-menu="protocols">Protocols</button>
+        <button class="pill menu-pill" data-menu="handbook">Parent Handbook</button>
       </div>
 
-      <section class="chat-card">
-        <div class="chat-head">
+      <section class="chat card">
+        <div class="chat-header">
           <div class="chat-title">Ask any CMS policy question.</div>
         </div>
 
-        <div id="chat-window" class="chat-window" aria-live="polite"></div>
+        <div id="chat-window" class="chat-window"></div>
 
         <form id="chat-form" class="chat-form">
-          <input id="user-input" class="chat-input" type="text"
-                 placeholder="Example: When do we call parents if a child doesn’t arrive?"
-                 autocomplete="off"/>
-          <button class="btn btn-primary chat-send" type="submit">Ask</button>
+          <input id="user-input" class="input chat-input" placeholder="Example: When do we call parents if a child doesn’t arrive?" />
+          <button class="btn btn-primary" type="submit">Ask</button>
         </form>
       </section>
-
-      <!-- Menu Panel -->
-      <div id="menu-overlay" class="overlay"></div>
-      <aside id="menu-panel" class="menu-panel hidden" role="dialog" aria-modal="true">
-        <div class="menu-panel-top">
-          <div id="menu-panel-title" class="menu-panel-title">Menu</div>
-          <button id="menu-panel-close" class="btn btn-ghost btn-icon" aria-label="Close">✕</button>
-        </div>
-        <div id="menu-panel-body" class="menu-panel-body"></div>
-      </aside>
 
       <footer class="footer">© CMS — Staff internal tool</footer>
     </main>
 
+    <!-- MENU PANEL -->
+    <div id="menu-overlay" class="overlay"></div>
+
+    <aside id="menu-panel" class="panel hidden" aria-hidden="true">
+      <div class="panel-header">
+        <div id="menu-panel-title" class="panel-title">Menu</div>
+        <button id="menu-panel-close" class="btn btn-ghost btn-sm">✕</button>
+      </div>
+      <div id="menu-panel-body" class="panel-body"></div>
+    </aside>
+
   </div>
 
-  <script src="app.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
